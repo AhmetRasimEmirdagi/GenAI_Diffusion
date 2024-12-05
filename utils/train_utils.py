@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from diffusers import UNet2DConditionModel
 from tqdm import tqdm
 
+
 class GlobalNormalizationLayer(nn.Module):
     """
     A global normalization layer to normalize input data.
@@ -13,7 +14,15 @@ class GlobalNormalizationLayer(nn.Module):
         super(GlobalNormalizationLayer, self).__init__()
 
     def forward(self, x):
-        return (x - x.mean(dim=(1, 2, 3), keepdim=True)) / (x.std(dim=(1, 2, 3), keepdim=True) + 1e-6)
+        """
+        Normalize input data globally across each sample.
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, channels, length).
+
+        Returns:
+            torch.Tensor: Globally normalized tensor.
+        """
+        return (x - x.mean(dim=(1, 2), keepdim=True)) / (x.std(dim=(1, 2), keepdim=True) + 1e-6)
 
 
 class Trainer:
@@ -54,13 +63,17 @@ class Trainer:
             tqdm_loader = tqdm(self.dataloader, desc=f"Epoch {epoch + 1}/{num_epochs}")
             for batch in tqdm_loader:
                 # Extract data and conditions
-                x_start, rx, tx = batch["data"], batch["rx"], batch["tx"]
+                x_start = batch["data"].to(self.device)  # Input signals
+                rx = batch["rx"].to(self.device)        # Receiver coordinates
+                tx = batch["tx"].to(self.device)        # Transmitter coordinates
+
+                # Compute distance and angle (polar coordinates)
                 distance = torch.sqrt((rx[:, 0] - tx[:, 0]) ** 2 + (rx[:, 1] - tx[:, 1]) ** 2)
                 angle = torch.atan2(rx[:, 1] - tx[:, 1], rx[:, 0] - tx[:, 0])
                 conditions = torch.stack([distance, angle], dim=1).to(self.device)
 
-                # Move data to the device and normalize
-                x_start = self.normalization_layer(x_start.to(self.device))
+                # Normalize the input data
+                x_start = self.normalization_layer(x_start)
 
                 # Sample random timesteps
                 t = torch.randint(0, self.num_timesteps, (x_start.size(0),), device=self.device)
@@ -69,7 +82,7 @@ class Trainer:
                 x_t, noise = self.scheduler.add_noise(x_start, t)
 
                 # Predict noise
-                predicted_noise = self.model(x_t, timesteps=t, class_labels=conditions).sample
+                predicted_noise = self.model(x_t, timesteps=t, encoder_hidden_states=conditions).sample
 
                 # Compute loss
                 loss = self.loss_fn(predicted_noise, noise)
@@ -80,5 +93,11 @@ class Trainer:
                 loss.backward()
                 self.optimizer.step()
 
-            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(self.dataloader)}")
+            # Log epoch loss
+            print(f"Epoch {epoch + 1}/{num_epochs}, Loss: {epoch_loss / len(self.dataloader):.6f}")
 
+
+# Usage Example
+# Assuming you have initialized `model`, `dataloader`, `optimizer`, and `scheduler`:
+# trainer = Trainer(model, dataloader, optimizer, scheduler, device="cuda")
+# trainer.train(num_epochs=10)
