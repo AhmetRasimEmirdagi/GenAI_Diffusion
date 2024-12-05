@@ -24,27 +24,26 @@ def main():
         # Load dataset
         loader = DatasetLoader(
             data_folder=args.data_folder,
-            num_samples=args.num_samples,
-            image_size=(args.image_size, args.image_size),
+            signal_length=args.signal_length,
             channels=args.channels,
             device=args.device,
         )
         dataloader = loader.get_dataloader(batch_size=args.batch_size)
-
+    
         # Model
         model = UNet2DConditionModel(
-            sample_size=(args.image_size, args.image_size),
-            in_channels=args.channels,
-            out_channels=args.channels,
-            cross_attention_dim=2,  # Polar coordinates
+            sample_size=args.signal_length,  # Length of the 1D signals
+            in_channels=args.channels,      # 1D signal input
+            out_channels=args.channels,     # Output matches input
+            cross_attention_dim=2,          # Polar coordinates (r, theta)
         ).to(args.device)
-
+    
         # Noise Scheduler
         scheduler = NoiseScheduler(num_timesteps=1000)
-
+    
         # Optimizer
         optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
-
+    
         # Trainer
         trainer = Trainer(
             model=model,
