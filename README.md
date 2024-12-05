@@ -1,4 +1,4 @@
-# Diffusion Model Project
+# Wireless Channel Generation With Diffusion Model
 
 ## Project Overview
 
