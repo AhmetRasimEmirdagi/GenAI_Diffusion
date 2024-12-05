@@ -4,3 +4,4 @@ diffusers==0.15.0
 matplotlib==3.7.1    
 numpy==1.23.5   
 scipy==1.10.1  
+tqdm
