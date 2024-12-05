@@ -1,5 +1,6 @@
 import argparse
 import torch
+import wandb
 from data_loader import get_dataloader
 from train_utils import Trainer
 from inference_utils import InferencePipeline
@@ -18,9 +19,22 @@ def main():
     parser.add_argument("--num_timesteps", type=int, default=1000, help="Number of timesteps for the diffusion process.")
     parser.add_argument("--signal_length", type=int, default=250, help="Length of the 1D signal.")
     parser.add_argument("--device", type=str, default="cuda", help="Device to use for training or inference.")
+    parser.add_argument("--project_name", type=str, default="diffusion-model", help="W&B project name.")
     args = parser.parse_args()
 
     if args.mode == "train":
+        # Initialize Weights & Biases
+        wandb.init(
+            project=args.project_name,
+            config={
+                "batch_size": args.batch_size,
+                "num_epochs": args.num_epochs,
+                "learning_rate": 1e-4,
+                "num_timesteps": args.num_timesteps,
+                "signal_length": args.signal_length,
+            },
+        )
+
         # Create DataLoader for training
         dataloader = get_dataloader(
             data_folder=args.data_folder,
@@ -50,6 +64,7 @@ def main():
             optimizer=optimizer,
             scheduler=scheduler,
             device=args.device,
+            wandb_logger=wandb,  # Pass W&B logger to the trainer
         )
 
         # Train the model
@@ -57,6 +72,7 @@ def main():
 
         # Save the model
         torch.save(model.state_dict(), args.model_path)
+        wandb.save(args.model_path)  # Save model checkpoint to W&B
         print(f"Model saved to {args.model_path}")
 
     elif args.mode == "inference":
